@@ -18,37 +18,54 @@
 #include <linux/fs.h>      // Needed by filp
 #include <asm/uaccess.h>   // Needed by segment descriptors
 
-#define CAST_MAX_FILE_NUM 16
-
-typedef struct
+typedef struct cast_perf
 {
-	int logging = 0;		// 0:stop logging, 1:logging
+	struct file * data_file;	// log file
 
-	struct file *CAST_LOG_FILE;	// log file
-
+	int 	active;			// 0:stop measuring, 1:measuring
 	int	 	unit_time;		// unit time to log file write
+	long 	next_time;		// next file write
 	int 	read;			// read count per unit time
 	int 	write;			// write count per unit time
-	long 	start_time;	// time margin
-	long 	next_time;		// next file write
-}CAST_LOG_FILE;
-CAST_LOG_FILE CAST_LOG_FILE[CAST_MAX_FILE_NUM];
 
-/* increase IOPS by read */
-static void CAST_INCREASE_READ();
-/* increase IOPS by write */
-static void CAST_INCREASE_WRIGHT();
-/* clear IOPS count*/
-static void CAST_RESET_COUNT();
-/* start measuring */
-static void CAST_MEASURING_START();
-/* memory -> log file */
-static void CAST_WRITE_TO_LOG_FILE();
-/* make log file */
-static inline int CAST_CREATE_LOG_FILE(char *device_name);
-/* close log file */
-static int CAST_CLOSE_LOG_FILE(char *device_name);
-/* Call CAST_WRITE_TO_LOG_FILE() periodically */
-static CAST_FLUSH_TO_FILE_THREAD();
+	// like method
+	void (*init)(struct pblk *pblk);
+	int	 (*create_data_file)(struct pblk *pblk);
+	int  (*close_data_file)(struct pblk *pblk);
+	int  (*write_in_data_file)(struct pblk *pblk, int time);
+	void (*flush_thread)(struct pblk *pblk);
+
+	void (*increase_read)(struct pblk *pblk);
+	void (*increase_write)(struct pblk *pblk);
+	void (*reset_count)(struct pblk *pblk);
+
+}CAST_PERF;
+
+
+/* Creator for CAST_PERF */
+void CAST_SET_PERF(struct pblk *pblk));
+
+
+/*  TODO:remove this declarations  */
+
+// /* preparing measurment */
+// void CAST_PERF_INIT(struct pblk *pblk);
+// /* start measuring */
+// void CAST_MEASURING_START(struct pblk *pblk);
+// /* memory -> data file */
+// int CAST_WRITE_TO_DATA_FILE(struct pblk *pblk, int time);
+// /* open data file */
+// int CAST_CREATE_DATA_FILE(struct pblk *pblk);
+// /* close data file */
+// int CAST_CLOSE_DATA_FILE(struct pblk *pblk);
+// /* Call CAST_WRITE_TO_DATA_FILE() periodically */
+// void CAST_FLUSH_DATA_TO_FILE_THREAD(struct pblk *pblk);
+
+// /* increase IOPS by read */
+// void CAST_INCREASE_READ(struct pblk *pblk);
+// /* increase IOPS by write */
+// void CAST_INCREASE_WRIGHT(struct pblk *pblk);
+// /* clear IOPS count*/
+// void CAST_RESET_COUNT(struct pblk *pblk);
 
 #endif /* CAST_PERF_H */
