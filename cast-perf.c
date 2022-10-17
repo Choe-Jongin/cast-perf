@@ -9,6 +9,7 @@
 /******************************************************************************/
 
 #include "cast-perf.h"
+#include "pblk.h"
 
 /**************** CAST ***************/
 
@@ -17,17 +18,18 @@ void CAST_PERF_INIT(void *private)
 {
 	struct pblk *pblk = private;
 	pblk->c_perf.create_data_file(pblk);
-	pblk->c_perf.next_time = get_jiffies_64();
+	pblk->c_perf.unit_time = 1000;
+	pblk->c_perf.init_time = get_jiffies_64();
+	pblk->c_perf.next_time = 0;
 	pblk->c_perf.reset_count(pblk);
 
 	//start logging
 	pblk->c_perf.active = 1;
 
 	//flush thread start
-	printk(KERN_ALERT "[  CAST  ] - flush thread of %s is run\n", pblk->disk->disk_name);
 	pblk->c_perf.thead = (struct task_struct*)kthread_run((pblk->c_perf.flush_thread), 
 		pblk, "flush_thread");
-	printk(KERN_ALERT "[  CAST  ] - %s is start\n", pblk->disk->disk_name);
+	printk(KERN_ALERT "[  CAST  ] - flush thread of %s is run\n", pblk->disk->disk_name);
 }
 
 /* open data file */
@@ -82,18 +84,22 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 
 	sprintf(str,"%8d \t%8d \t%8d\n", time, pblk->c_perf.read, pblk->c_perf.write);
 	vfs_write(pblk->c_perf.data_file, str, strlen(str), &pblk->c_perf.data_file->f_pos);
+
+	// printk(KERN_ALERT "[  CAST  ] - %d : write to %s.data\n", time, pblk->disk->disk_name);
 }
 
 /* Call CAST_WRITE_TO_DATA_FILE() periodically */
 int CAST_FLUSH_DATA_TO_FILE_THREAD(void *private)
 {
 	struct pblk *pblk = private;
-	long now = get_jiffies_64();
+	long now = 0;
 	while (pblk->c_perf.active == 1)
-	{
-		if (now < pblk->c_perf.next_time)
+	{	
+		now = get_jiffies_64() - pblk->c_perf.init_time;
+		if (now > pblk->c_perf.next_time)
 		{
-			pblk->c_perf.write_in_data_file(pblk, (int)(now / HZ));
+			pblk->c_perf.write_in_data_file(pblk, (int)(now*1000/HZ));
+			pblk->c_perf.reset_count(pblk);
 		}
 		msleep(pblk->c_perf.unit_time/10);
 	}
@@ -102,16 +108,16 @@ int CAST_FLUSH_DATA_TO_FILE_THREAD(void *private)
 }
 
 /* increase IOPS by read */
-void CAST_INCREASE_READ(void *private)
+void CAST_INCREASE_READ(void *private, int size)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf.read++;
+	pblk->c_perf.read+=size;
 }
 /* increase IOPS by write */
-void CAST_INCREASE_WRIGHT(void *private)
+void CAST_INCREASE_WRIGHT(void *private, int size)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf.write++;
+	pblk->c_perf.write+=size;
 }
 /* clear IOPS count, update the next time */
 void CAST_RESET_COUNT(void *private)
@@ -119,7 +125,7 @@ void CAST_RESET_COUNT(void *private)
 	struct pblk *pblk = private;
 	pblk->c_perf.read	= 0;
 	pblk->c_perf.write	= 0;
-	pblk->c_perf.next_time = pblk->c_perf.next_time  + (HZ*pblk->c_perf.unit_time)/1000;
+	pblk->c_perf.next_time = pblk->c_perf.next_time + (HZ*pblk->c_perf.unit_time)/1000;
 }
 
 /* Creator for CAST_PERF */
@@ -129,6 +135,7 @@ void CAST_SET_PERF(void *private)
 	// member variables
 	pblk->c_perf.active		= 0;
 	pblk->c_perf.unit_time	= 0;
+	pblk->c_perf.init_time	= 0;
 	pblk->c_perf.next_time	= 0;
 	pblk->c_perf.read		= 0;
 	pblk->c_perf.write		= 0;
