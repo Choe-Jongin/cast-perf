@@ -8,28 +8,30 @@
 /*                                                                            */
 /******************************************************************************/
 
+#include <linux/jiffies.h>	//time
+#include <linux/delay.h>
+#include <linux/timer.h>	//msleep
+
 #include "cast-perf.h"
 #include "pblk.h"
-
-/**************** CAST ***************/
 
 /* preparing measurment */
 void CAST_PERF_INIT(void *private)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf.create_data_file(pblk);
-	pblk->c_perf.unit_time = 1000;
-	pblk->c_perf.init_time = get_jiffies_64();
-	pblk->c_perf.next_time = 0;
-	pblk->c_perf.reset_count(pblk);
+	pblk->c_perf->create_data_file(pblk);
+	pblk->c_perf->unit_time = 1000;
+	pblk->c_perf->init_time = get_jiffies_64()*1000/HZ;
+	pblk->c_perf->next_time = 0;
+	pblk->c_perf->reset_count(pblk);
 
 	//start logging
-	pblk->c_perf.active = 1;
+	pblk->c_perf->active = 1;
 
 	//flush thread start
-	pblk->c_perf.thead = (struct task_struct*)kthread_run((pblk->c_perf.flush_thread), 
+	pblk->c_perf->thead = (struct task_struct*)kthread_run((pblk->c_perf->flush_thread), 
 		pblk, "flush_thread");
-	printk(KERN_ALERT "[  CAST  ] - flush thread of %s is run\n", pblk->disk->disk_name);
+	printk(KERN_ALERT "[  CAST  ] - flushing thread of %s is run\n", pblk->disk->disk_name);
 }
 
 /* open data file */
@@ -42,11 +44,11 @@ int CAST_CREATE_DATA_FILE(void *private)
 	sprintf(filename,"/pblk-cast_perf/%s.data",pblk->disk->disk_name);
 
 	/*open the file */
-	pblk->c_perf.data_file = filp_open(filename, O_WRONLY | O_CREAT, 0);
-	if (IS_ERR(pblk->c_perf.data_file))
+	pblk->c_perf->data_file = filp_open(filename, O_WRONLY | O_CREAT, 0);
+	if (IS_ERR(pblk->c_perf->data_file))
 	{
 		printk(KERN_ALERT "[  CAST  ] - Cannot open the file %s %ld\n", 
-			filename, PTR_ERR(pblk->c_perf.data_file));
+			filename, PTR_ERR(pblk->c_perf->data_file));
 		return -1;
 	}
 
@@ -56,18 +58,21 @@ int CAST_CREATE_DATA_FILE(void *private)
 int CAST_CLOSE_DATA_FILE(void *private)
 {
 	struct pblk *pblk = private;
-	if (IS_ERR(pblk->c_perf.data_file))
+	if (IS_ERR(pblk->c_perf->data_file))
 	{
 		printk(KERN_ALERT "[  CAST  ] - data file for %s is not opened\n", pblk->disk->disk_name);
 		return -1;
 	}
 
-	filp_close(pblk->c_perf.data_file, NULL);
+	filp_close(pblk->c_perf->data_file, NULL);
 	printk(KERN_ALERT "[  CAST  ] - End measuring %s\n", pblk->disk->disk_name);
 
 	//end logging
-	pblk->c_perf.active = 0;
-	kthread_stop(pblk->c_perf.thead);
+	pblk->c_perf->active = 0;
+	// kthread_stop(pblk->c_perf->thead);
+	printk(KERN_ALERT "[  CAST  ] - stop frushing thread %s\n", pblk->disk->disk_name);
+	kfree(pblk->c_perf);
+	printk(KERN_ALERT "[  CAST  ] - free perf pointer %s\n", pblk->disk->disk_name);
 	return 0;
 }
 
@@ -76,16 +81,23 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 {
 	struct pblk *pblk = private;
 	char str[256];
-	if (IS_ERR(pblk->c_perf.data_file))
+	if (IS_ERR(pblk->c_perf->data_file))
 	{
 		printk(KERN_ALERT "[  CAST  ] - data file for %s is not opened\n", pblk->disk->disk_name);
 		return -1;
 	}
 
-	sprintf(str,"%8d \t%8d \t%8d\n", time, pblk->c_perf.read, pblk->c_perf.write);
-	vfs_write(pblk->c_perf.data_file, str, strlen(str), &pblk->c_perf.data_file->f_pos);
+	sprintf(str,"%5d.%03ds %8d %8d %8ldKiB %8d %8d %8ldKiB\n", time/1000, time%1000,
+												pblk->c_perf->read, 
+												pblk->c_perf->read_len, 
+												pblk->c_perf->read_size>>13,
+												pblk->c_perf->write,
+												pblk->c_perf->write_len,
+												pblk->c_perf->write_size>>13);
+	vfs_write(pblk->c_perf->data_file, str, strlen(str), &pblk->c_perf->data_file->f_pos);
 
 	// printk(KERN_ALERT "[  CAST  ] - %d : write to %s.data\n", time, pblk->disk->disk_name);
+	return 0;
 }
 
 /* Call CAST_WRITE_TO_DATA_FILE() periodically */
@@ -93,62 +105,80 @@ int CAST_FLUSH_DATA_TO_FILE_THREAD(void *private)
 {
 	struct pblk *pblk = private;
 	long now = 0;
-	while (pblk->c_perf.active == 1)
+	int fr_to_ms = 1000/HZ;
+	while (pblk->c_perf->active == 1)
 	{	
-		now = get_jiffies_64() - pblk->c_perf.init_time;
-		if (now > pblk->c_perf.next_time)
+		now = get_jiffies_64()*fr_to_ms - pblk->c_perf->init_time;
+		if (now >= pblk->c_perf->next_time)
 		{
-			pblk->c_perf.write_in_data_file(pblk, (int)(now*1000/HZ));
-			pblk->c_perf.reset_count(pblk);
+			if( pblk->c_perf->write_in_data_file(pblk, now) != 0 )
+				return 1;
+			pblk->c_perf->reset_count(pblk);
 		}
-		msleep(pblk->c_perf.unit_time/10);
+		msleep(HZ/10);
 	}
-
 	return 0;
 }
 
 /* increase IOPS by read */
-void CAST_INCREASE_READ(void *private, int size)
+void CAST_INCREASE_READ(void *private, int cnt, long size)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf.read+=size;
+	pblk->c_perf->read		+= 1;
+	pblk->c_perf->read_len	+= cnt;
+	pblk->c_perf->read_size	+= size;
 }
 /* increase IOPS by write */
-void CAST_INCREASE_WRIGHT(void *private, int size)
+void CAST_INCREASE_WRITE(void *private, int cnt, long size)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf.write+=size;
+	pblk->c_perf->write		+= 1;
+	pblk->c_perf->write_len	+= cnt;
+	pblk->c_perf->write_size	+= size;
 }
 /* clear IOPS count, update the next time */
 void CAST_RESET_COUNT(void *private)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf.read	= 0;
-	pblk->c_perf.write	= 0;
-	pblk->c_perf.next_time = pblk->c_perf.next_time + (HZ*pblk->c_perf.unit_time)/1000;
+	pblk->c_perf->read		= 0;
+	pblk->c_perf->write		= 0;
+	pblk->c_perf->read_size	= 0;
+	pblk->c_perf->write_size	= 0;
+	pblk->c_perf->read_len		= 0;
+	pblk->c_perf->write_len		= 0;
+	pblk->c_perf->next_time 	= pblk->c_perf->next_time + pblk->c_perf->unit_time;
 }
 
 /* Creator for CAST_PERF */
-void CAST_SET_PERF(void *private)
+struct cast_perf * new_cast_perf()
 {
-	struct pblk *pblk = private;
+	struct cast_perf * perf;
+	perf = (struct cast_perf *)kmalloc(sizeof(struct cast_perf ), GFP_KERNEL);
+    if(perf == NULL)
+    	return perf;
+	
 	// member variables
-	pblk->c_perf.active		= 0;
-	pblk->c_perf.unit_time	= 0;
-	pblk->c_perf.init_time	= 0;
-	pblk->c_perf.next_time	= 0;
-	pblk->c_perf.read		= 0;
-	pblk->c_perf.write		= 0;
+	perf->active	= 0;
+	perf->unit_time	= 0;
+	perf->init_time	= 0;
+	perf->next_time	= 0;
+	perf->read		= 0;
+	perf->write		= 0;
+	perf->read_len		= 0;
+	perf->write_len		= 0;
+	perf->read_size	= 0;
+	perf->write_size= 0;
 
 	// method
-	pblk->c_perf.init 				= &CAST_PERF_INIT;
-	pblk->c_perf.create_data_file	= &CAST_CREATE_DATA_FILE;
-	pblk->c_perf.close_data_file	= &CAST_CLOSE_DATA_FILE;
-	pblk->c_perf.write_in_data_file	= &CAST_WRITE_TO_DATA_FILE;
-	pblk->c_perf.flush_thread		= &CAST_FLUSH_DATA_TO_FILE_THREAD;
+	perf->init 				= &CAST_PERF_INIT;
+	perf->create_data_file	= &CAST_CREATE_DATA_FILE;
+	perf->close_data_file	= &CAST_CLOSE_DATA_FILE;
+	perf->write_in_data_file= &CAST_WRITE_TO_DATA_FILE;
+	perf->flush_thread		= &CAST_FLUSH_DATA_TO_FILE_THREAD;
 
-	pblk->c_perf.increase_read		= &CAST_INCREASE_READ;
-	pblk->c_perf.increase_write		= &CAST_INCREASE_WRIGHT;
-	pblk->c_perf.reset_count		= &CAST_RESET_COUNT;
+	perf->increase_read		= &CAST_INCREASE_READ;
+	perf->increase_write	= &CAST_INCREASE_WRITE;
+	perf->reset_count		= &CAST_RESET_COUNT;
+
+	return perf;
 }
-/**************** CAST END ***************/

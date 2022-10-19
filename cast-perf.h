@@ -14,9 +14,6 @@
 #include <linux/kernel.h>
 
 #include <linux/string.h>
-#include <linux/jiffies.h>	//time
-#include <linux/delay.h>
-#include <linux/timer.h>	//msleep
 #include <linux/kthread.h>	//thread
 //file read
 #include <linux/file.h>
@@ -25,7 +22,7 @@
 
 typedef struct cast_perf
 {
-	struct file * data_file;	// log file
+	struct file * data_file;	// data by file
 	struct task_struct *thead; 	// flush thread
 
 	int 	active;			// 0:stop measuring, 1:measuring
@@ -34,23 +31,24 @@ typedef struct cast_perf
 	long 	next_time;		// next file write
 	int 	read;			// read count per unit time
 	int 	write;			// write count per unit time
+	int 	read_len;			// read count per unit time
+	int 	write_len;			// write count per unit time
+	long 	read_size;			// size per unit time
+	long 	write_size;			// size per unit time
 
 	// like method
 	void (*init)(void *private);
 	int	 (*create_data_file)(void *private);
 	int  (*close_data_file)(void *private);
 	int  (*write_in_data_file)(void *private, int time);
-	int (*flush_thread)(void *private);
+	int  (*flush_thread)(void *private);
 
-	void (*increase_read)(void *private, int size);
-	void (*increase_write)(void *private, int size);
+	void (*increase_read)(void *private, int cnt, long size);
+	void (*increase_write)(void *private, int cnt, long size);
 	void (*reset_count)(void *private);
+}Cast_perf;
 
-}CAST_PERF;
-
-/* Creator for CAST_PERF */
-void CAST_SET_PERF(void *private);
-
-
+/* Creator for Cast_perf */
+struct cast_perf * new_cast_perf(void);
 
 #endif /* CAST_PERF_H */

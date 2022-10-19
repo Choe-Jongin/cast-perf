@@ -699,7 +699,7 @@ struct pblk {
 
 	struct pblk_gc gc;
 
-	struct cast_perf c_perf; /** CAST perfomance measurement tool struct **/
+	struct cast_perf * c_perf; /** CAST perfomance measurement tool struct **/
 };
 
 struct pblk_line_ws {
