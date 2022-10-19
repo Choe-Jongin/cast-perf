@@ -32,6 +32,8 @@
 
 #include <linux/lightnvm.h>
 /** CAST perfomance measurement tool **/
+
+#include "pblk-cps-tracer.h"
 #include "cast-perf.h"
 
 /* Run only GC if less than 1/X blocks are free */
@@ -1360,5 +1362,3 @@ static inline int pblk_is_oob_meta_supported(struct pblk *pblk)
 	return pblk->oob_meta_size >= sizeof(struct pblk_sec_meta);
 }
 #endif /* PBLK_H_ */
-
-#include "cps-tracer.h"

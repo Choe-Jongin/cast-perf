@@ -18,24 +18,13 @@
  *
  * pblk-init.c - pblk's initialization.
  */
+#include <stdarg.h>
 
 #include "pblk.h"
 #include "pblk-trace.h"
-#include <stdarg.h>
 
 #pragma GCC push_options // Save current options
 #pragma GCC optimize ("O1")
-//CPS Tracer Init
-int CPS_TARGET_ONLY     = 0;
-int CPS_TGT_FILE_NUM    = 0;
-CPS_tgt_file CPS_tgt_files[CPS_MAX_TGT_FILE];
-void *CPS_FUNC_ADDR[CPS_MAX_CALLSTACK];
-char *CPS_FUNC_NAME[CPS_MAX_CALLSTACK];
-int CPS_CALL_DEEP       = 0;
-int CPS_FUNC_COUNT      = 0;
-char * current_filename = "";
-char kstr[1024]         = "";
-//CPS Tracer Init End
 
 static unsigned int write_buffer_size;
 
@@ -86,14 +75,14 @@ static blk_qc_t pblk_make_rq(struct request_queue *q, struct bio *bio)
 	 */
 	if (bio_data_dir(bio) == READ) {
 		/* count read */
-		pblk->c_perf->increase_read(pblk, bio->bi_vcnt, size);
+		pblk->c_perf->increase_read(pblk, size);
 
 		blk_queue_split(q, &bio);
 		pblk_submit_read(pblk, bio);
 
 	} else {
 		/* count write */
-		pblk->c_perf->increase_write(pblk, bio->bi_vcnt, size);
+		pblk->c_perf->increase_write(pblk, size);
 
 		/* Prevent deadlock in the case of a modest LUN configuration
 		 * and large user I/Os. Unless stalled, the rate limiter

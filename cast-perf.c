@@ -87,12 +87,10 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 		return -1;
 	}
 
-	sprintf(str,"%5d.%03ds %8d %8d %8ldKiB %8d %8d %8ldKiB\n", time/1000, time%1000,
+	sprintf(str,"%5d.%03ds %8d %8ldKiB %8d %8ldKiB\n", time/1000, time%1000,
 												pblk->c_perf->read, 
-												pblk->c_perf->read_len, 
 												pblk->c_perf->read_size>>13,
 												pblk->c_perf->write,
-												pblk->c_perf->write_len,
 												pblk->c_perf->write_size>>13);
 	vfs_write(pblk->c_perf->data_file, str, strlen(str), &pblk->c_perf->data_file->f_pos);
 
@@ -121,20 +119,18 @@ int CAST_FLUSH_DATA_TO_FILE_THREAD(void *private)
 }
 
 /* increase IOPS by read */
-void CAST_INCREASE_READ(void *private, int cnt, long size)
+void CAST_INCREASE_READ(void *private, long size)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf->read		+= 1;
-	pblk->c_perf->read_len	+= cnt;
+	pblk->c_perf->read++;
 	pblk->c_perf->read_size	+= size;
 }
 /* increase IOPS by write */
-void CAST_INCREASE_WRITE(void *private, int cnt, long size)
+void CAST_INCREASE_WRITE(void *private, long size)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf->write		+= 1;
-	pblk->c_perf->write_len	+= cnt;
-	pblk->c_perf->write_size	+= size;
+	pblk->c_perf->write++;
+	pblk->c_perf->write_size += size;
 }
 /* clear IOPS count, update the next time */
 void CAST_RESET_COUNT(void *private)
@@ -144,8 +140,6 @@ void CAST_RESET_COUNT(void *private)
 	pblk->c_perf->write		= 0;
 	pblk->c_perf->read_size	= 0;
 	pblk->c_perf->write_size	= 0;
-	pblk->c_perf->read_len		= 0;
-	pblk->c_perf->write_len		= 0;
 	pblk->c_perf->next_time 	= pblk->c_perf->next_time + pblk->c_perf->unit_time;
 }
 
@@ -164,8 +158,6 @@ struct cast_perf * new_cast_perf()
 	perf->next_time	= 0;
 	perf->read		= 0;
 	perf->write		= 0;
-	perf->read_len		= 0;
-	perf->write_len		= 0;
 	perf->read_size	= 0;
 	perf->write_size= 0;
 
