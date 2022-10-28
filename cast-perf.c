@@ -99,7 +99,7 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 		return -1;
 	}
 
-	sprintf(str,"%5d.%03ds\t[r: %6d %8d KiB %5dByte/IO] [w: %6d %8d KiB %5dByte/IO\n]",
+	sprintf(str,"%5d.%03ds\t[r: %5d %7d KiB %5dByte/IO] [w: %5d %7d KiB %5dByte/IO]\n",
 												time/1000, time%1000,
 												read_io,  read_size,  read_size_per_io,
 												write_io, write_size, write_size_per_io);
