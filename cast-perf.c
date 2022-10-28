@@ -86,12 +86,12 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	int read_size_per_io, write_size_per_io;	// IO size(maybe block size?)
 
 	read_io 			= (int)(pblk->c_perf->read);
-	read_size 			= (int)(pblk->c_perf->read_size>>13);
-	read_size_per_io 	= (int)(pblk->c_perf->read/pblk->c_perf->read_size);
+	read_size 			= (int)(pblk->c_perf->read_size>>10);
+	read_size_per_io 	= read_io > 0 ? (int)(pblk->c_perf->read_size/pblk->c_perf->read) : 0;
 
 	write_io 			= (int)(pblk->c_perf->write);
-	write_size 			= (int)(pblk->c_perf->write_size>>13);
-	write_size_per_io 	= (int)(pblk->c_perf->write/pblk->c_perf->write_size);
+	write_size 			= (int)(pblk->c_perf->write_size>>10);
+	write_size_per_io 	= write_io > 0 ? (int)(pblk->c_perf->write_size/pblk->c_perf->write) : 0;
 
 	if (IS_ERR(pblk->c_perf->data_file))
 	{
@@ -99,7 +99,7 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 		return -1;
 	}
 
-	sprintf(str,"%5d.%03ds\t[r: %5d %7d KiB %5dByte/IO] [w: %5d %7d KiB %5dByte/IO]\n",
+	sprintf(str,"%5d.%03ds\t[r: %5d %7d KiB %6dB/IO] [w: %5d %7d KiB %6dB/IO]\n",
 												time/1000, time%1000,
 												read_io,  read_size,  read_size_per_io,
 												write_io, write_size, write_size_per_io);
