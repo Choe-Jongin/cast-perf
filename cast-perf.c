@@ -81,17 +81,28 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 {
 	struct pblk *pblk = private;
 	char str[256];
+	int read_io, write_io;						// IOPS
+	int read_size, write_size;					// Bandwidth
+	int read_size_per_io, write_size_per_io;	// IO size(maybe block size?)
+
+	read_io 			= (int)(pblk->c_perf->read);
+	read_size 			= (int)(pblk->c_perf->read_size>>13);
+	read_size_per_io 	= (int)(pblk->c_perf->read/pblk->c_perf->read_size);
+
+	write_io 			= (int)(pblk->c_perf->write);
+	write_size 			= (int)(pblk->c_perf->write_size>>13);
+	write_size_per_io 	= (int)(pblk->c_perf->write/pblk->c_perf->write_size);
+
 	if (IS_ERR(pblk->c_perf->data_file))
 	{
 		printk(KERN_ALERT "[  CAST  ] - data file for %s is not opened\n", pblk->disk->disk_name);
 		return -1;
 	}
 
-	sprintf(str,"%5d.%03ds %8d %8ldKiB %8d %8ldKiB\n", time/1000, time%1000,
-												pblk->c_perf->read, 
-												pblk->c_perf->read_size>>13,
-												pblk->c_perf->write,
-												pblk->c_perf->write_size>>13);
+	sprintf(str,"%5d.%03ds\t[r: %6d %8d KiB %5dByte/IO] [w: %6d %8d KiB %5dByte/IO\n]",
+												time/1000, time%1000,
+												read_io,  read_size,  read_size_per_io,
+												write_io, write_size, write_size_per_io);
 	vfs_write(pblk->c_perf->data_file, str, strlen(str), &pblk->c_perf->data_file->f_pos);
 
 	// printk(KERN_ALERT "[  CAST  ] - %d : write to %s.data\n", time, pblk->disk->disk_name);
@@ -113,7 +124,7 @@ int CAST_FLUSH_DATA_TO_FILE_THREAD(void *private)
 				return 1;
 			pblk->c_perf->reset_count(pblk);
 		}
-		msleep(HZ/10);
+		msleep(10);
 	}
 	return 0;
 }
