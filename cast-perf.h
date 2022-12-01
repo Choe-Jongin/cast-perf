@@ -31,8 +31,13 @@ typedef struct cast_perf
 	long 	next_time;		// next file write
 	int 	read;			// read count per unit time
 	int 	write;			// write count per unit time
-	long 	read_size;			// size per unit time
-	long 	write_size;			// size per unit time
+	int 	gc;			// gc count per unit time
+	long 	read_size;		// size per unit time
+	long 	write_size;		// size per unit time
+
+	long 	total_read;		// total read count
+	long 	total_write;	// total write count
+	long	total_gc;		// total gc count
 
 	// like method
 	void (*init)(void *private);
@@ -43,6 +48,7 @@ typedef struct cast_perf
 
 	void (*increase_read)(void *private, long size);
 	void (*increase_write)(void *private, long size);
+	void (*increase_gc)(void *private, long size);
 	void (*reset_count)(void *private);
 }Cast_perf;
 
