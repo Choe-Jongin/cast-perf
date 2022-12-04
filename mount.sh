@@ -27,16 +27,16 @@ function create_dev {
     echo "[info] ch:$ch, chips:$(($lun_e-$lun_b+1)), size:$((ch*$SIZE_PER_CH))GB, lun:($lun_b ~ $lun_e)"
 
     #directory check
-    if [ ! -d $DEV_MOUNT_PATH$name]; then
+    if [ ! -d $DEV_MOUNT_PATH$name ]; then
         mkdir $DEV_MOUNT_PATH$name
     fi    
     
     #data file check
-    if [ ! -d "$DEV_DATA_PATH$name.data"]; then
+    if [ -d "$DEV_DATA_PATH$name.data" ]; then
         rm "$DEV_DATA_PATH$name.data"
     fi
 
-    sudo nvme lnvm create -d /dev/nvme0n1 -n ${name} -t pblk -b $lun_b -e $lun_e -f
+    sudo nvme lnvm create -d nvme0n1 --lun-begin=${lun_b} --lun-end=${lun_e} -n ${name} -t pblk -f
     sudo mkfs -t ext4 /dev/${name}
     sudo mount /dev/${name} $DEV_MOUNT_PATH$name
 
