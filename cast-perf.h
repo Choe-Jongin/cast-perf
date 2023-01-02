@@ -20,6 +20,14 @@
 #include <linux/fs.h>      // Needed by filp
 #include <asm/uaccess.h>   // Needed by segment descriptors
 
+typedef struct cast_counter
+{
+	int unit;
+	long total;
+
+	void (*reset_unit)(struct cast_counter * cc);
+}Cast_counter;
+
 typedef struct cast_perf
 {
 	struct file * data_file;	// data by file
@@ -29,15 +37,12 @@ typedef struct cast_perf
 	int	 	unit_time;		// unit time to log file write
 	long 	init_time;		// initial time
 	long 	next_time;		// next file write
-	int 	read;			// read count per unit time
-	int 	write;			// write count per unit time
-	int 	gc;			// gc count per unit time
-	long 	read_size;		// size per unit time
-	long 	write_size;		// size per unit time
 
-	long 	total_read;		// total read count
-	long 	total_write;	// total write count
-	long	total_gc;		// total gc count
+	struct cast_counter *read_hit;
+	struct cast_counter *read_miss;
+	struct cast_counter *write_usr;
+	struct cast_counter *write_gc;
+	struct cast_counter *gc;
 
 	// like method
 	void (*init)(void *private);
@@ -46,13 +51,14 @@ typedef struct cast_perf
 	int  (*write_in_data_file)(void *private, int time);
 	int  (*flush_thread)(void *private);
 
-	void (*increase_read)(void *private, long size);
-	void (*increase_write)(void *private, long size);
-	void (*increase_gc)(void *private, long size);
+	void (*inc_count)(void *private, struct cast_counter *cc, int size);
 	void (*reset_count)(void *private);
 }Cast_perf;
 
 /* Creator for Cast_perf */
-struct cast_perf * new_cast_perf(void);
+struct cast_perf *new_cast_perf(void);
+
+/* Creator for cast_counter */
+struct cast_counter *new_cast_counter(void);
 
 #endif /* CAST_PERF_H */

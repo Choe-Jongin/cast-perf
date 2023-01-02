@@ -54,8 +54,6 @@ struct bio_set pblk_bio_set;
 static blk_qc_t pblk_make_rq(struct request_queue *q, struct bio *bio)
 {
 	struct pblk *pblk = q->queuedata;
-	long i;
-	int size = 0;
 
 	if (bio_op(bio) == REQ_OP_DISCARD) {
 		pblk_discard(pblk, bio);
@@ -65,25 +63,14 @@ static blk_qc_t pblk_make_rq(struct request_queue *q, struct bio *bio)
 		}
 	}
 
-	for( i = 0; i < bio->bi_vcnt; i++)
-	{
-		size += bio->bi_io_vec[i].bv_len;
-	}
-
 	/* Read requests must be <= 256kb due to NVMe's 64 bit completion bitmap
 	 * constraint. Writes can be of arbitrary size.
 	 */
 	if (bio_data_dir(bio) == READ) {
-		/* count read */
-		pblk->c_perf->increase_read(pblk, size);
-
 		blk_queue_split(q, &bio);
 		pblk_submit_read(pblk, bio);
 
 	} else {
-		/* count write */
-		pblk->c_perf->increase_write(pblk, size);
-
 		/* Prevent deadlock in the case of a modest LUN configuration
 		 * and large user I/Os. Unless stalled, the rate limiter
 		 * leaves at least 256KB available for user I/O.
@@ -1334,14 +1321,6 @@ static struct nvm_tgt_type tt_pblk = {
 
 static int __init pblk_module_init(void)
 {
-	CPS_MSG("PBLK MODULE INIT");
-	CPS_MSG("READ TARGET FILE");
-	if (CPS_READ_TARGET_FILE("/usr/src/OpenChannelSSD/drivers/lightnvm/cps_target.txt") != 0)
-		if (CPS_READ_TARGET_FILE("drivers/lightnvm/cps_target.txt") != 0)
-			if (CPS_READ_TARGET_FILE("cps_target.txt") != 0)
-				if (CPS_READ_TARGET_FILE("/home/femu/cps_target.txt") != 0)
-					CPS_MSG("fail target mode start");
-
 	int ret;
 
 	ret = bioset_init(&pblk_bio_set, BIO_POOL_SIZE, 0, 0);

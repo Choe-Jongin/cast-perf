@@ -1,7 +1,7 @@
 /*****************   CPS   ****************/
 
-#ifndef CPS_TRACER_HBLK_H_
-#define CPS_TRACER_HBLK_H_
+#ifndef CPS_TRACER_PBLK_H_
+#define CPS_TRACER_PBLK_H_
 
 #include <linux/module.h> 
 #include <linux/kernel.h>
@@ -248,4 +248,4 @@ static inline void CPS_MSG(const char *str)
 	printk(kstr);
 }
 
-#endif /* CPS_TRACER_HBLK_H_ */
+#endif /* CPS_TRACER_PBLK_H_ */
