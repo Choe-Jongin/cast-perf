@@ -69,7 +69,6 @@ static blk_qc_t pblk_make_rq(struct request_queue *q, struct bio *bio)
 	if (bio_data_dir(bio) == READ) {
 		blk_queue_split(q, &bio);
 		pblk_submit_read(pblk, bio);
-
 	} else {
 		/* Prevent deadlock in the case of a modest LUN configuration
 		 * and large user I/Os. Unless stalled, the rate limiter
@@ -1152,7 +1151,7 @@ static sector_t pblk_capacity(void *private)
 static void *pblk_init(struct nvm_tgt_dev *dev, struct gendisk *tdisk,
 		       int flags)
 {
-	CPS_MSG("PBLK INIT");
+	printk(KERN_ALERT "[  CAST  ] - pblk init %s\n", tdisk->disk_name);
 
 	if (CPS_READ_TARGET_FILE("/usr/src/OpenChannelSSD/drivers/lightnvm/cps_target.txt") != 0)
 		if (CPS_READ_TARGET_FILE("drivers/lightnvm/cps_target.txt") != 0)

@@ -55,12 +55,12 @@ static inline int CPS_READ_TARGET_FILE(const char * tgtlistfile)
 	int level;
 	int i;
 
-	char buf[1024];
+	char buf[512];
 	struct file *fp;
 	loff_t pos = 0;
 	int offset = 0;
 	
-	for( i = 0 ; i < 1024 ; i++)
+	for( i = 0 ; i < 512 ; i++)
 		buf[i] = '\0';
 
 	/*open the file in read mode*/

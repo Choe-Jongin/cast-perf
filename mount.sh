@@ -21,8 +21,8 @@ function create_dev {
     ch=$1
     name=$2
     end=$((${begin}+${ch}))
-    lun_b=$((${begin}*2))
-    lun_e=$((${end}*2-1))
+    lun_b=$((${begin}*${CHIPS_PER_CH}))
+    lun_e=$((${end}*${CHIPS_PER_CH}-1))
     echo "[device name] ${name}"
     echo "[info] ch:$ch, chips:$(($lun_e-$lun_b+1)), size:$((ch*$SIZE_PER_CH))GB, lun:($lun_b ~ $lun_e)"
 
@@ -32,7 +32,7 @@ function create_dev {
     fi    
     
     #data file check
-    if [ -d "$DEV_DATA_PATH$name.data" ]; then
+    if [ -e "$DEV_DATA_PATH$name.data" ]; then
         rm "$DEV_DATA_PATH$name.data"
     fi
 

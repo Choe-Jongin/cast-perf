@@ -115,7 +115,8 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	int read_h, read_m, write_u, write_g;	// read_hit/miss, write_user/gc per unit
 	int read, write, gc;					// read write gc per unit
 	int hit_rate = 0, waf = 0;				// hit rate, waf per unit
-	long total_read, total_write, total_gc, total_hit_rate = 0, total_waf = 0;	// total
+	long total_read, total_write, total_gc; // total
+	int total_hit_rate = 0, total_waf = 0;	// total rate/waf
 
 	if (IS_ERR(pblk->c_perf->data_file))
 	{
@@ -147,10 +148,10 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	if( c_perf->write_usr->total != 0 )
 		total_waf		= total_write*100 / c_perf->write_usr->total;
 
-	//            [time  read write gc] [Detail r:hit/sum(rate) w:sum/usr(WAF)] [TOTAL r(rate) w(WAF) gc]
+	//            [time  read write_u gc] [Detail r:hit/sum(rate) w:sum/usr(WAF)] [TOTAL r(rate) w(WAF) gc]
 	sprintf(str, "[ %5d.%03ds %7d %7d %4d ]\t[ Detail r:%d/%d(%d) w:%d/%d(%d) ]\t[ TOTAL %ld(%d) %ld(%d) %ld ]\n",
-		time/1000, time%1000, read, write, gc,
-		read_h, read_m, hit_rate, write_u, write_g, waf,
+		time/1000, time%1000, read, write_u, gc,
+		read_h, read_m, hit_rate, write, write_u, waf,
 		total_read, total_hit_rate, total_write, total_waf, total_gc
 	);
 	vfs_write(pblk->c_perf->data_file, str, strlen(str), &pblk->c_perf->data_file->f_pos);
