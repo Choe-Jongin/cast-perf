@@ -1256,7 +1256,7 @@ static void *pblk_init(struct nvm_tgt_dev *dev, struct gendisk *tdisk,
 	/*CAST perf */
 	if((pblk->c_perf = new_cast_perf()) != NULL )
 	{
-		pblk->c_perf->init(pblk);	//start measuring
+		pblk->c_perf->init(pblk, 1000);	//start measuring
 	}
 	else
 	{

@@ -39,14 +39,14 @@ struct cast_counter *new_cast_counter()
 
 /**************                  *************/
 
-/* preparing measurment */
-void CAST_PERF_INIT(void *private)
+/* start measurment */
+void CAST_PERF_INIT(void *private, int unit_time)
 {
 	struct pblk *pblk = private;
 	struct cast_perf *c_perf = pblk->c_perf;
 
 	c_perf->create_data_file(pblk);
-	c_perf->unit_time = 1000;
+	c_perf->unit_time = unit_time;
 	c_perf->init_time = get_jiffies_64()*1000/HZ;
 	c_perf->next_time = 0;
 	c_perf->reset_count(pblk);
@@ -71,7 +71,7 @@ int CAST_CREATE_DATA_FILE(void *private)
 	sprintf(filename,"/pblk-cast_perf/%s.data",pblk->disk->disk_name);
 
 	/*open the file */
-	c_perf->data_file = filp_open(filename, O_WRONLY | O_CREAT, 0);
+	c_perf->data_file = filp_open(filename, O_TRUNC | O_WRONLY | O_CREAT, 0);
 	if (IS_ERR(c_perf->data_file))
 	{
 		printk(KERN_ALERT "[  CAST  ] - Cannot open the file %s %ld\n", 
@@ -115,8 +115,6 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	int read_h, read_m, write_u, write_g;	// read_hit/miss, write_user/gc per unit
 	int read, write, gc;					// read write gc per unit
 	int hit_rate = 0, waf = 0;				// hit rate, waf per unit
-	long total_read, total_write, total_gc; // total
-	int total_hit_rate = 0, total_waf = 0;	// total rate/waf
 
 	if (IS_ERR(pblk->c_perf->data_file))
 	{
@@ -139,20 +137,10 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	if( write_u != 0 )
 		waf			= write*100 / write_u;
 
-	total_read 	= c_perf->read_hit->total + c_perf->read_miss->total;	// sum of total read
-	total_write	= c_perf->write_usr->total + c_perf->write_gc->total;	// sum of total write
-	total_gc	= c_perf->gc->total;
-
-	if( total_read != 0 )
-		total_hit_rate	= c_perf->read_hit->total*100 / total_read;
-	if( c_perf->write_usr->total != 0 )
-		total_waf		= total_write*100 / c_perf->write_usr->total;
-
-	//            [time  read write_u gc] [Detail r:hit/sum(rate) w:sum/usr(WAF)] [TOTAL r(rate) w(WAF) gc]
-	sprintf(str, "[ %5d.%03ds %7d %7d %4d ]\t[ Detail r:%d/%d(%d) w:%d/%d(%d) ]\t[ TOTAL %ld(%d) %ld(%d) %ld ]\n",
+	//            [time  read write_u gc] [Detail r:hit/sum(rate) w:sum/usr(WAF)]
+	sprintf(str, "[ %5d.%03ds %7d %7d %4d ]\t[ Detail r:%d/%d(%d) w:%d/%d(%d) ]\n",
 		time/1000, time%1000, read, write_u, gc,
-		read_h, read_m, hit_rate, write, write_u, waf,
-		total_read, total_hit_rate, total_write, total_waf, total_gc
+		read_h, read_m, hit_rate, write, write_u, waf
 	);
 	vfs_write(pblk->c_perf->data_file, str, strlen(str), &pblk->c_perf->data_file->f_pos);
 

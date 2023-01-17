@@ -45,7 +45,8 @@ typedef struct cast_perf
 	struct cast_counter *gc;
 
 	// like method
-	void (*init)(void *private);
+	/* start measurment. unit_time(ms) */
+	void (*init)(void *private, int unit_time);
 	int	 (*create_data_file)(void *private);
 	int  (*close_data_file)(void *private);
 	int  (*write_in_data_file)(void *private, int time);
