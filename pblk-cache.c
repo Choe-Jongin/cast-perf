@@ -69,7 +69,7 @@ retry:
 	}
 
 	/* CastLab : count write to cache from user */
-	pblk->c_perf->inc_count(pblk, pblk->c_perf->write_usr, 1);
+	pblk->c_perf->inc_count(pblk, pblk->c_perf->write_usr, nr_entries);
 	atomic64_add(nr_entries, &pblk->user_wa);
 
 #ifdef CONFIG_NVM_PBLK_DEBUG
@@ -126,7 +126,7 @@ retry:
 	}
 
 	/* CastLab : count write to cache from gc */
-	pblk->c_perf->inc_count(pblk, pblk->c_perf->write_gc, 1);
+	pblk->c_perf->inc_count(pblk, pblk->c_perf->write_gc, valid_entries);
 
 	WARN_ONCE(gc_rq->secs_to_gc != valid_entries,
 					"pblk: inconsistent GC write\n");

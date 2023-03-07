@@ -58,7 +58,6 @@ static inline int CPS_READ_TARGET_FILE(const char * tgtlistfile)
 	char buf[512];
 	struct file *fp;
 	loff_t pos = 0;
-	int offset = 0;
 	
 	for( i = 0 ; i < 512 ; i++)
 		buf[i] = '\0';

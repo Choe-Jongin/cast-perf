@@ -12,6 +12,7 @@
 
 #include <linux/module.h> 
 #include <linux/kernel.h>
+#include <linux/ktime.h>
 
 #include <linux/string.h>
 #include <linux/kthread.h>	//thread
@@ -22,21 +23,20 @@
 
 typedef struct cast_counter
 {
-	int unit;
+	long unit;
+	int num;
 	long total;
 
-	void (*reset_unit)(struct cast_counter * cc);
-}Cast_counter;
+	int (*avg)(struct cast_counter * cc);			// get avg(unit/num)
+	void (*reset_unit)(struct cast_counter * cc);	// clear unit, num
+}CastCounter;
 
 typedef struct cast_perf
 {
+	struct cast_perf_mgr * mgr;
+
 	struct file * data_file;	// data by file
 	struct task_struct *thead; 	// flush thread
-
-	int 	active;			// 0:stop measuring, 1:measuring
-	int	 	unit_time;		// unit time to log file write
-	long 	init_time;		// initial time
-	long 	next_time;		// next file write
 
 	struct cast_counter *read_hit;
 	struct cast_counter *read_miss;
@@ -44,22 +44,70 @@ typedef struct cast_perf
 	struct cast_counter *write_gc;
 	struct cast_counter *gc;
 
+	struct cast_counter *rlat_dev;	// read latencies from device
+	struct cast_counter *wlat_dev;	// write latencies to device
+
 	// like method
 	/* start measurment. unit_time(ms) */
 	void (*init)(void *private, int unit_time);
 	int	 (*create_data_file)(void *private);
 	int  (*close_data_file)(void *private);
 	int  (*write_in_data_file)(void *private, int time);
-	int  (*flush_thread)(void *private);
 
-	void (*inc_count)(void *private, struct cast_counter *cc, int size);
+	void (*inc_count)(void *private, struct cast_counter *cc, long size);
 	void (*reset_count)(void *private);
-}Cast_perf;
+}CastPerf;
 
 /* Creator for Cast_perf */
 struct cast_perf *new_cast_perf(void);
-
 /* Creator for cast_counter */
 struct cast_counter *new_cast_counter(void);
 
+/********   CPU   *******/
+#define MAX_STAT_BUF 1024
+typedef struct cast_cpu_stat
+{
+	int nproc;
+	long user, nice, syst, idle, wait, irq, soft, steal, guest;	// /proc/stat values
+
+	void (*get_current_stat)(struct cast_cpu_stat *this);
+} CastCpuStat;
+struct cast_cpu_stat * new_cast_cpu_stat(int core);
+
+typedef struct cast_perf_mgr
+{
+	struct task_struct *thread; 	// flush thread
+	struct file * data_file;	// data by file
+
+	void *pblk_vec[32];	
+	int nr_pblk;
+
+	struct cast_cpu_stat *elapsed_stat;
+	struct cast_cpu_stat *current_stat;
+
+	int 	active;			// 0:stop measuring, 1:measuring
+	int	 	unit_time;		// unit time to log file write
+	long 	init_time;		// initial time
+	long 	next_time;		// next file write
+
+	void (*reset)			(struct cast_perf_mgr *this);
+	int  (*flush)			(struct cast_perf_mgr *this, long time);
+	int  (*add_pblk)		(struct cast_perf_mgr *this, void *pblk);
+	int  (*pop_pblk)		(struct cast_perf_mgr *this, void *pblk);
+	int  (*flush_thread)	(void *data);
+} CastPerfManager;
+/* Manager implemented in a singleton pattern*/
+struct cast_perf_mgr *get_cast_perf_mgr(void*pblk);
+/* 
+Cpu user system nice idle wait hi si zero
+CPU: CPU core의 번호.
+User: user mode에서의 실행 시간
+System: system mode에서의 실행 시간
+Nice: 낮은 권한의 user mode에서의 실행 시간
+Idle: I/O완료가 아닌 대기 시
+Wait: I/O 완료 대기 시간
+Hi: Hard Interrupt(IRQ)
+Si: Soft Interrupt(SoftIRQ)
+Zero: 끝
+*/
 #endif /* CAST_PERF_H */

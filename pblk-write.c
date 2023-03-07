@@ -412,6 +412,7 @@ int pblk_submit_meta_io(struct pblk *pblk, struct pblk_line *meta_line)
 	pblk_down_chunk(pblk, ppa_list[0]);
 
 	ret = pblk_submit_io(pblk, rqd, data);
+
 	if (ret) {
 		pblk_err(pblk, "emeta I/O submission failed: %d\n", ret);
 		goto fail_rollback;
@@ -508,8 +509,17 @@ static int pblk_submit_io_set(struct pblk *pblk, struct nvm_rq *rqd)
 
 	meta_line = pblk_should_submit_meta_io(pblk, rqd);
 
+
+	/* CastLab : write to Device(OCSSD) */
+	ktime_t s_time, e_time;
+	s_time = ktime_get_ns();
 	/* Submit data write for current data line */
 	err = pblk_submit_io(pblk, rqd, NULL);
+	e_time = ktime_get_ns();
+	pblk->c_perf->inc_count(pblk, pblk->c_perf->wlat_dev, (long)(e_time - s_time));
+	if( pblk->c_perf->wlat_dev->num%10 == 1 )
+		printk(KERN_ALERT "[  CAST  ] device w latency : %lldns \n", e_time - s_time);
+		
 	if (err) {
 		pblk_err(pblk, "data I/O submission failed: %d\n", err);
 		return NVM_IO_ERR;

@@ -310,7 +310,7 @@ split_retry:
 
 	if (from_cache && nr_secs == rqd->nr_ppas) {
 		/* CastLab : count read from cache */
-		pblk->c_perf->inc_count(pblk, pblk->c_perf->read_hit, 1);
+		pblk->c_perf->inc_count(pblk, pblk->c_perf->read_hit, nr_secs);
 
 		/* All data was read from cache, we can complete the IO. */
 		pblk_end_user_read(bio, 0);
@@ -346,13 +346,20 @@ split_retry:
 		int_bio = bio_clone_fast(bio, GFP_KERNEL, &pblk_bio_set);
 		goto split_retry;
 	} else{
-		/* CastLab : count write to cache from user */
-		pblk->c_perf->inc_count(pblk, pblk->c_perf->read_miss, 1);
+		/* CastLab : count read from device */
+		pblk->c_perf->inc_count(pblk, pblk->c_perf->read_miss, nr_secs);
+		/* CastLab : read from Device(OCSSD) */
+		ktime_t s_time, e_time;
+		s_time = ktime_get_ns();
 		if (pblk_submit_io(pblk, rqd, NULL)) {
 			/* Submitting IO to drive failed, let's report an error */
 			rqd->error = -ENODEV;
 			pblk_end_io_read(rqd);
 		}
+		e_time = ktime_get_ns();
+		pblk->c_perf->inc_count(pblk, pblk->c_perf->rlat_dev, (long)(e_time - s_time));
+		if( pblk->c_perf->rlat_dev->num%10 == 1 )
+			printk(KERN_ALERT "[  CAST  ] device r latency : %lldns \n", e_time - s_time);
 	}
 }
 

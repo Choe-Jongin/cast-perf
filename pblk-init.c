@@ -23,8 +23,8 @@
 #include "pblk.h"
 #include "pblk-trace.h"
 
-#pragma GCC push_options // Save current options
-#pragma GCC optimize ("O1")
+// #pragma GCC push_options // Save current options
+// #pragma GCC optimize ("O1")
 
 static unsigned int write_buffer_size;
 
@@ -1129,8 +1129,9 @@ static void pblk_tear_down(struct pblk *pblk, bool graceful)
 static void pblk_exit(void *private, bool graceful)
 {
 	struct pblk *pblk = private;
-
+	pblk->c_perf->mgr->pop_pblk(pblk->c_perf->mgr, pblk->c_perf);
 	pblk->c_perf->close_data_file(pblk);
+	kfree(pblk->c_perf);
 	pblk_gc_exit(pblk, graceful);
 	pblk_tear_down(pblk, graceful);
 
@@ -1345,4 +1346,4 @@ MODULE_AUTHOR("Matias Bjorling <matias@cnexlabs.com>");
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Physical Block-Device for Open-Channel SSDs");
 
-#pragma GCC pop_options  // Restore saved options
+// #pragma GCC pop_options  // Restore saved options
