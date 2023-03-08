@@ -217,7 +217,7 @@ static void pblk_end_io_read(struct nvm_rq *rqd)
 	struct pblk *pblk = rqd->private;
 	struct pblk_g_ctx *r_ctx = nvm_rq_to_pdu(rqd);
 	struct bio *bio = (struct bio *)r_ctx->private;
-	if(rqd->submit_time > 0){
+	if(pblk->c_perf != NULL && rqd->submit_time > 0){
 		uint64_t complete_time = ktime_get_ns();
 		pblk->c_perf->add_latency(pblk->c_perf, (long)(complete_time - rqd->submit_time));
 		//printk(KERN_ALERT "[  CAST  ] device r latency : %lldns \n", (long)(complete_time - rqd->submit_time));

@@ -1134,6 +1134,7 @@ static void pblk_exit(void *private, bool graceful)
 	if( err != 0 )
 		printk(KERN_ALERT "\n[  CAST  ] - Pop Error %d\n", err);
 	pblk->c_perf->close_data_file(pblk);
+	pblk->c_perf = NULL;
 	pblk_gc_exit(pblk, graceful);
 	pblk_tear_down(pblk, graceful);
 

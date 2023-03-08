@@ -190,6 +190,9 @@ void CAST_INCREASE_COUNT(void *private, struct cast_counter *cc, long size)
 /* count latency by 10us */
 void AddLatency(struct cast_perf *this, long time)
 {
+	if(this->mgr->active != 1){
+		return ;
+	}
 	int index;
 	index = (time - 40000)/10000;	// (time(ns) - min(ns))/10,000 -> 10us
 	if(index < 0)
@@ -377,6 +380,8 @@ int ManagerFlush(struct cast_perf_mgr *this, long time)
 
 	total = user + syst + nice + idle + wait + irq + soft + steal + guest;
 	used  = total - idle;
+	if( total == 0 )
+		total = 1;
 
 	sprintf(str, "[%5ld.%03lds] CPU TOTAL %3ld [ %ld %ld %ld %ld %ld %ld %ld %ld %ld ]\n",
 	time/1000, time%1000, used*100/total, user, nice, syst, idle, wait, irq, soft, steal, guest);
@@ -467,12 +472,11 @@ void SetCastActive(struct cast_perf_mgr *this, int active)
 	printk(KERN_ALERT "[  CAST  ] - Manager(%p) active:%s\n", this, active==1?"run":"stop");
 	if(active == 1)
 	{
-		this->active = 1;								// active
 		this->unit_time = 1000;							// ms
 		this->init_time = get_jiffies_64() * 1000 / HZ; // ms
 		this->next_time = 0;
 
-		this->current_stat->get_current_stat(this->current_stat);
+		this->elapsed_stat->get_current_stat(this->elapsed_stat);
 		this->current_stat->get_current_stat(this->current_stat);
 		// flush each pblk
 		for( i = 0; i < this->nr_pblk ; i++)
@@ -489,6 +493,7 @@ void SetCastActive(struct cast_perf_mgr *this, int active)
 			c_perf->gc->total = 0;
 		}
 
+		this->active = 1;								// active
 		// run flushing Thread
 		this->reset(this);
 		this->thread = (struct task_struct *)kthread_run(this->flush_thread, this, "manager_flush_thread");
