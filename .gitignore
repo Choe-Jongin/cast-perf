@@ -9,7 +9,6 @@ pblk-cps-tracer.c
 pblk-map.c
 pblk-recovery.c
 pblk-rl.c
-pblk-sysfs.c
 pblk-trace.h
 pblk.mod
 pblk.mod.c

@@ -217,7 +217,11 @@ static void pblk_end_io_read(struct nvm_rq *rqd)
 	struct pblk *pblk = rqd->private;
 	struct pblk_g_ctx *r_ctx = nvm_rq_to_pdu(rqd);
 	struct bio *bio = (struct bio *)r_ctx->private;
-
+	if(rqd->submit_time > 0){
+		uint64_t complete_time = ktime_get_ns();
+		pblk->c_perf->add_latency(pblk->c_perf, (long)(complete_time - rqd->submit_time));
+		//printk(KERN_ALERT "[  CAST  ] device r latency : %lldns \n", (long)(complete_time - rqd->submit_time));
+	}
 	pblk_end_user_read(bio, rqd->error);
 	__pblk_end_io_read(pblk, rqd, true);
 }
@@ -349,17 +353,12 @@ split_retry:
 		/* CastLab : count read from device */
 		pblk->c_perf->inc_count(pblk, pblk->c_perf->read_miss, nr_secs);
 		/* CastLab : read from Device(OCSSD) */
-		ktime_t s_time, e_time;
-		s_time = ktime_get_ns();
+		rqd->submit_time = ktime_get_ns();
 		if (pblk_submit_io(pblk, rqd, NULL)) {
 			/* Submitting IO to drive failed, let's report an error */
 			rqd->error = -ENODEV;
 			pblk_end_io_read(rqd);
 		}
-		e_time = ktime_get_ns();
-		pblk->c_perf->inc_count(pblk, pblk->c_perf->rlat_dev, (long)(e_time - s_time));
-		if( pblk->c_perf->rlat_dev->num%10 == 1 )
-			printk(KERN_ALERT "[  CAST  ] device r latency : %lldns \n", e_time - s_time);
 	}
 }
 

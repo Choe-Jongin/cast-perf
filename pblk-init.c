@@ -1129,9 +1129,11 @@ static void pblk_tear_down(struct pblk *pblk, bool graceful)
 static void pblk_exit(void *private, bool graceful)
 {
 	struct pblk *pblk = private;
-	pblk->c_perf->mgr->pop_pblk(pblk->c_perf->mgr, pblk->c_perf);
+	int err;
+	err = pblk->c_perf->mgr->pop_pblk(pblk->c_perf->mgr, pblk);
+	if( err != 0 )
+		printk(KERN_ALERT "\n[  CAST  ] - Pop Error %d\n", err);
 	pblk->c_perf->close_data_file(pblk);
-	kfree(pblk->c_perf);
 	pblk_gc_exit(pblk, graceful);
 	pblk_tear_down(pblk, graceful);
 
@@ -1152,13 +1154,13 @@ static sector_t pblk_capacity(void *private)
 static void *pblk_init(struct nvm_tgt_dev *dev, struct gendisk *tdisk,
 		       int flags)
 {
-	printk(KERN_ALERT "[  CAST  ] - pblk init %s\n", tdisk->disk_name);
+	printk(KERN_ALERT "\n[  CAST  ] - pblk init \033[1m%s\033[0m\n", tdisk->disk_name);
 
-	if (CPS_READ_TARGET_FILE("/usr/src/OpenChannelSSD/drivers/lightnvm/cps_target.txt") != 0)
-		if (CPS_READ_TARGET_FILE("drivers/lightnvm/cps_target.txt") != 0)
-			if (CPS_READ_TARGET_FILE("cps_target.txt") != 0)
-				if (CPS_READ_TARGET_FILE("/home/femu/cps_target.txt") != 0)
-					CPS_MSG("fail target mode start");
+	// if (CPS_READ_TARGET_FILE("/usr/src/OpenChannelSSD/drivers/lightnvm/cps_target.txt") != 0)
+	// 	if (CPS_READ_TARGET_FILE("drivers/lightnvm/cps_target.txt") != 0)
+	// 		if (CPS_READ_TARGET_FILE("cps_target.txt") != 0)
+	// 			if (CPS_READ_TARGET_FILE("/home/femu/cps_target.txt") != 0)
+	// 				CPS_MSG("fail target mode start");
 
 	struct nvm_geo *geo = &dev->geo;
 	struct request_queue *bqueue = dev->q;
@@ -1257,7 +1259,7 @@ static void *pblk_init(struct nvm_tgt_dev *dev, struct gendisk *tdisk,
 	/*CAST perf */
 	if((pblk->c_perf = new_cast_perf()) != NULL )
 	{
-		pblk->c_perf->init(pblk, 1000);	//start measuring
+		pblk->c_perf->init(pblk);	//start measuring
 	}
 	else
 	{

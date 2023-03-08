@@ -31,6 +31,7 @@ typedef struct cast_counter
 	void (*reset_unit)(struct cast_counter * cc);	// clear unit, num
 }CastCounter;
 
+#define MAX_LATENCY_CHUNK 256
 typedef struct cast_perf
 {
 	struct cast_perf_mgr * mgr;
@@ -44,17 +45,17 @@ typedef struct cast_perf
 	struct cast_counter *write_gc;
 	struct cast_counter *gc;
 
-	struct cast_counter *rlat_dev;	// read latencies from device
-	struct cast_counter *wlat_dev;	// write latencies to device
+	int latency[MAX_LATENCY_CHUNK];
 
 	// like method
 	/* start measurment. unit_time(ms) */
-	void (*init)(void *private, int unit_time);
+	void (*init)(void *private);
 	int	 (*create_data_file)(void *private);
 	int  (*close_data_file)(void *private);
 	int  (*write_in_data_file)(void *private, int time);
 
 	void (*inc_count)(void *private, struct cast_counter *cc, long size);
+	void (*add_latency)(struct cast_perf *this, long time);
 	void (*reset_count)(void *private);
 }CastPerf;
 
@@ -79,8 +80,9 @@ typedef struct cast_perf_mgr
 	struct task_struct *thread; 	// flush thread
 	struct file * data_file;	// data by file
 
-	void *pblk_vec[32];	
-	int nr_pblk;
+	void *pblk_vec[32];		// pblk vector
+	int nr_pblk;			// number of pblk
+	int is_now_flushing;	// flushing
 
 	struct cast_cpu_stat *elapsed_stat;
 	struct cast_cpu_stat *current_stat;
@@ -90,6 +92,7 @@ typedef struct cast_perf_mgr
 	long 	init_time;		// initial time
 	long 	next_time;		// next file write
 
+	void (*set_active)		(struct cast_perf_mgr *this, int active);
 	void (*reset)			(struct cast_perf_mgr *this);
 	int  (*flush)			(struct cast_perf_mgr *this, long time);
 	int  (*add_pblk)		(struct cast_perf_mgr *this, void *pblk);
@@ -97,6 +100,7 @@ typedef struct cast_perf_mgr
 	int  (*flush_thread)	(void *data);
 } CastPerfManager;
 /* Manager implemented in a singleton pattern*/
+extern int manager_allocated;
 struct cast_perf_mgr *get_cast_perf_mgr(void*pblk);
 /* 
 Cpu user system nice idle wait hi si zero

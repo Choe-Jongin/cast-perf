@@ -15,6 +15,8 @@
 #include "cast-perf.h"
 #include "pblk.h"
 
+int manager_allocated = 0;
+
 int atoi(const char *s)
 {
 	int n;
@@ -53,7 +55,10 @@ struct cast_counter *new_cast_counter()
 	struct cast_counter * cc;
 	cc = (struct cast_counter *)kmalloc(sizeof(struct cast_counter), GFP_KERNEL);
     if(cc == NULL)
-    	return cc;
+	{
+		printk(KERN_ALERT "[  CAST  ] - Failed to allocate cast counter\n");
+		return NULL;
+	}
 	
 	cc->unit 	= 0;
 	cc->num 	= 0;
@@ -68,18 +73,16 @@ struct cast_counter *new_cast_counter()
 /**************                  *************/
 
 /* start measurment */
-void CAST_PERF_INIT(void *private, int unit_time)
+void CAST_PERF_INIT(void *private)
 {
 	struct pblk *pblk = private;
 	struct cast_perf *c_perf = pblk->c_perf;
-
+	printk(KERN_ALERT "[  CAST  ] - Init cast_perf of \033[1m%s\033[0m \n", pblk->disk->disk_name);
+	
 	c_perf->create_data_file(pblk);
 	c_perf->reset_count(pblk);
 	
 	c_perf->mgr = get_cast_perf_mgr(pblk);
-
-	//flush thread start
-	printk(KERN_ALERT "[  CAST  ] - make cast_perf of %s \n", pblk->disk->disk_name);
 	printk(KERN_ALERT "[  CAST  ] - Manager : %p\n", c_perf->mgr);
 }
 
@@ -97,7 +100,7 @@ int CAST_CREATE_DATA_FILE(void *private)
 	c_perf->data_file = filp_open(filename, O_TRUNC | O_WRONLY | O_CREAT, 0);
 	if (IS_ERR(c_perf->data_file))
 	{
-		printk(KERN_ALERT "[  CAST  ] - Cannot open the file %s %ld\n", 
+		printk(KERN_ALERT "[  CAST  ] - Cannot open the file \033[1m%s\033[0m %ld\n", 
 			filename, PTR_ERR(c_perf->data_file));
 		return -1;
 	}
@@ -110,15 +113,21 @@ int CAST_CLOSE_DATA_FILE(void *private)
 	struct pblk *pblk = private;
 	struct cast_perf *c_perf = pblk->c_perf;
 
+	printk(KERN_ALERT "[  CAST  ] - Close perf data file of \033[1m%s\033[0m\n", pblk->disk->disk_name);
+
 	if (IS_ERR(c_perf->data_file))
 	{
-		printk(KERN_ALERT "[  CAST  ] - data file for %s is not opened\n", pblk->disk->disk_name);
+		printk(KERN_ALERT "[  CAST  ] ㄴ data file for %s is not opened\n", pblk->disk->disk_name);
 		return -1;
 	}
 
+	printk(KERN_ALERT "[  CAST  ] ㄴEnd measuring %d\n", c_perf->mgr->is_now_flushing);
+	while(c_perf->mgr->is_now_flushing)
+		;
 	filp_close(c_perf->data_file, NULL);
-	printk(KERN_ALERT "[  CAST  ] - End measuring %s\n", pblk->disk->disk_name);
-	printk(KERN_ALERT "[  CAST  ] - free perf pointer %s\n", pblk->disk->disk_name);
+	
+	printk(KERN_ALERT "[  CAST  ] ㄴfree perf pointer\n");
+	kfree(pblk->c_perf);
 	return 0;
 }
 
@@ -132,7 +141,6 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	int read_h, read_m, write_u, write_g;	// read_hit/miss, write_user/gc per unit
 	int read, write, gc;					// read write gc per unit
 	int hit_rate = 0, waf = 0;				// hit rate, waf per unit
-	int rlat, wlat, num_dev_r, num_dev_w;
 	int page_to_kbytes = 4096/1024;
 
 	if( private == NULL )
@@ -144,12 +152,6 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 	write_u		= c_perf->write_usr->unit*page_to_kbytes;
 	write_g		= c_perf->write_gc->unit*page_to_kbytes;
 	gc			= c_perf->gc->unit*page_to_kbytes;
-	
-	rlat 		= c_perf->rlat_dev->avg(c_perf->rlat_dev);
-	wlat 		= c_perf->wlat_dev->avg(c_perf->wlat_dev);
-	
-	num_dev_r 	= c_perf->rlat_dev->num;
-	num_dev_w 	= c_perf->wlat_dev->num;
 
 	read 	= read_h + read_m;		// sum of read
 	write 	= write_u + write_g;	// sum of write
@@ -160,15 +162,14 @@ int CAST_WRITE_TO_DATA_FILE(void *private, int time)
 		waf			= write*100 / write_u;
 
 	//            [time  read write_u gc] [Detail r:hit/sum(rate) w:sum/usr(WAF)]
-	sprintf(str, "[ %5d.%03ds %7d %7d %4d ]\t[ Detail r:%d/%d(%d) w:%d/%d(%d) ]\t[ Latency %d %d (%d %d)]\n",
+	sprintf(str, "[ %5d.%03ds %7d %7d %4d ]\t[ Detail r:%d/%d(%d) w:%d/%d(%d) ]\n",
 		time/1000, time%1000, read, write_u, gc,
-		read_h, read_m, hit_rate, write, write_u, waf,
-		rlat, wlat, num_dev_r, num_dev_w
+		read_h, read_m, hit_rate, write, write_u, waf
 	);
 
 	if (IS_ERR(pblk->c_perf->data_file))
 	{
-		printk(KERN_ALERT "[  CAST  ] - data file for %s is not opened\n", pblk->disk->disk_name);
+		printk(KERN_ALERT "[  CAST  ] - data file for \033[1m%s\033[0m is not opened\n", pblk->disk->disk_name);
 		return -1;
 	}
 	vfs_write(pblk->c_perf->data_file, str, strlen(str), &pblk->c_perf->data_file->f_pos);
@@ -186,6 +187,18 @@ void CAST_INCREASE_COUNT(void *private, struct cast_counter *cc, long size)
 	cc->total += size;
 	cc->num++;
 }
+/* count latency by 10us */
+void AddLatency(struct cast_perf *this, long time)
+{
+	int index;
+	index = (time - 40000)/10000;	// (time(ns) - min(ns))/10,000 -> 10us
+	if(index < 0)
+		index = 0;
+	if(index > MAX_LATENCY_CHUNK-1)
+		index = MAX_LATENCY_CHUNK-1;
+	
+	this->latency[index]++;
+}
 
 /* clear IOPS count, update the next time */
 void CAST_RESET_COUNT(void *private)
@@ -198,18 +211,21 @@ void CAST_RESET_COUNT(void *private)
 	c_perf->write_usr->	reset_unit(c_perf->write_usr);
 	c_perf->write_gc->	reset_unit(c_perf->write_gc);
 	c_perf->gc->		reset_unit(c_perf->gc);
-	
-	c_perf->rlat_dev->	reset_unit(c_perf->rlat_dev);
-	c_perf->wlat_dev->	reset_unit(c_perf->wlat_dev);
 }
 
 /* Creator for CAST_PERF */
 struct cast_perf * new_cast_perf()
 {
 	struct cast_perf * perf;
+	int i;
 	perf = (struct cast_perf *)kmalloc(sizeof(struct cast_perf), GFP_KERNEL);
     if(perf == NULL)
-    	return perf;
+	{
+		printk(KERN_ALERT "[  CAST  ] - Failed to allocate cast perf\n");
+		return NULL;
+	}
+
+	printk(KERN_ALERT "[  CAST  ] - Make cast_perf(%p)\n", perf);
 
 	//counters
 	perf->read_hit	= new_cast_counter();
@@ -218,9 +234,9 @@ struct cast_perf * new_cast_perf()
 	perf->write_gc	= new_cast_counter();
 	perf->gc	 	= new_cast_counter();
 
-	perf->rlat_dev	= new_cast_counter();
-	perf->wlat_dev	= new_cast_counter();
-
+	for( i = 0 ; i < MAX_LATENCY_CHUNK ; i++)
+		perf->latency[i] = 0;
+	
 	// method
 	perf->init 				= &CAST_PERF_INIT;
 	perf->create_data_file	= &CAST_CREATE_DATA_FILE;
@@ -228,6 +244,7 @@ struct cast_perf * new_cast_perf()
 	perf->write_in_data_file= &CAST_WRITE_TO_DATA_FILE;
 
 	perf->inc_count 		= &CAST_INCREASE_COUNT;
+	perf->add_latency 		= &AddLatency;
 	perf->reset_count 		= &CAST_RESET_COUNT;
 
 	return perf;
@@ -304,12 +321,23 @@ struct cast_cpu_stat * new_cast_cpu_stat(int core)
 // destroyer cast_perf_mgr
 void delete_cast_perf_mgr(struct cast_perf_mgr *this)
 {
-	this->active = 0;
-	kthread_stop(this->thread);
+	if( this->active != 0 )
+	{
+		this->active = 0;
+		printk(KERN_ALERT "[  CAST  ] - stop thread of Manager(%p)\n", this);
+		while (this->active >= 0)
+		{
+			printk(KERN_ALERT "[  CAST  ] ㄴ wait active %d\n", this->active);
+			msleep(HZ / 10);
+		}
+	}
+	this->is_now_flushing = 0;
+	printk(KERN_ALERT "[  CAST  ] - free the Manager's variable(%p)\n", this);
 	filp_close(this->data_file, 0);
 	kfree(this->elapsed_stat);
 	kfree(this->current_stat);
 	kfree(this);
+	manager_allocated = 0;
 }
 
 /* memory -> data file */
@@ -331,7 +359,7 @@ int ManagerFlush(struct cast_perf_mgr *this, long time)
 	long total, used, user, nice, syst, idle, wait, irq, soft, steal, guest;
 	int i;
 
-	if (IS_ERR(this->data_file) || this->active != 1)
+	if (IS_ERR(this->data_file))
 	{
 		printk(KERN_ALERT "[  CAST  ] - data file for CPU is not opened\n");
 		return -1;
@@ -354,13 +382,15 @@ int ManagerFlush(struct cast_perf_mgr *this, long time)
 	time/1000, time%1000, used*100/total, user, nice, syst, idle, wait, irq, soft, steal, guest);
 	vfs_write(this->data_file, str, strlen(str), &this->data_file->f_pos);
 
-	// flust each pblk
+	// flush each pblk
 	for( i = 0; i < this->nr_pblk ; i++)
 	{
-		int ret = ((struct pblk*)(this->pblk_vec[i]))->c_perf->write_in_data_file(this->pblk_vec[i], time);
+		if( ((struct pblk*)this->pblk_vec[i])->c_perf->data_file == NULL )
+			continue;
+		int ret = ((struct pblk*)this->pblk_vec[i])->c_perf->write_in_data_file(this->pblk_vec[i], time);
 		if( ret < 0)
 			return ret;
-		((struct pblk*)(this->pblk_vec[i]))->c_perf->reset_count(this->pblk_vec[i]);
+		((struct pblk*)this->pblk_vec[i])->c_perf->reset_count(this->pblk_vec[i]);
 	}
 	return 0;
 }
@@ -376,12 +406,19 @@ int ManagerFlushThread(void *data)
 		now = get_jiffies_64()*fr_to_ms - this->init_time;
 		if (now >= this->next_time)
 		{
-			if( this->flush(this, now) != 0 )
-				return 1;
+			this->is_now_flushing = 1;
+			if( this->active != 1 || this->flush(this, now) != 0 )
+			{
+				break;
+			}
+			this->is_now_flushing = 0;
 			this->reset(this);
 		}
 		msleep(HZ/10);
 	}
+	this->is_now_flushing = 0;
+	this->active = -1;		//finish
+	printk(KERN_ALERT "[  CAST  ] - Manager flush thread is done(act:%d)\n", this->active);
 	return 0;
 }
 
@@ -390,6 +427,7 @@ int AddPblk(struct cast_perf_mgr *this, void *pblk)
 	if( this->nr_pblk >= 32 )
 		return -1;	//FULL
 	this->pblk_vec[this->nr_pblk++] = pblk;
+	printk(KERN_ALERT "[  CAST  ] - Push to pblk_vec.(size:%d)\n", this->nr_pblk);
 	return 0;
 }
 int PopPblk(struct cast_perf_mgr *this, void *pblk)
@@ -397,7 +435,8 @@ int PopPblk(struct cast_perf_mgr *this, void *pblk)
 	int i, j;
 	if( this->nr_pblk <= 0 )
 		return -1;	//EMPTY
-	
+
+	printk(KERN_ALERT "\n[  CAST  ] - Pop pblk(%p)\n", pblk);
 	for( i = 0; i < this->nr_pblk ; i++ )
 	{	
 		if( this->pblk_vec[i] == pblk )
@@ -408,10 +447,62 @@ int PopPblk(struct cast_perf_mgr *this, void *pblk)
 			this->pblk_vec[this->nr_pblk] = NULL;
 			if( this->nr_pblk == 0 )
 				delete_cast_perf_mgr(this);
+			printk(KERN_ALERT "[  CAST  ] - remain : %d\n", this->nr_pblk);
 			return 0;
 		}
 	}
 	return -2; // Not found
+}
+
+void SetCastActive(struct cast_perf_mgr *this, int active)
+{
+	int i;
+	if( active == this->active )
+	{
+		printk(KERN_ALERT "[  CAST  ] - Already Manager(%p)'s active is %s\n",
+			this, this->active==1?"run":"stop");
+		return ;
+	}
+
+	printk(KERN_ALERT "[  CAST  ] - Manager(%p) active:%s\n", this, active==1?"run":"stop");
+	if(active == 1)
+	{
+		this->active = 1;								// active
+		this->unit_time = 1000;							// ms
+		this->init_time = get_jiffies_64() * 1000 / HZ; // ms
+		this->next_time = 0;
+
+		this->current_stat->get_current_stat(this->current_stat);
+		this->current_stat->get_current_stat(this->current_stat);
+		// flush each pblk
+		for( i = 0; i < this->nr_pblk ; i++)
+		{
+			struct cast_perf * c_perf;
+			c_perf = ((struct pblk*)this->pblk_vec[i])->c_perf;
+			if( c_perf->data_file == NULL )
+				continue;
+			c_perf->reset_count((struct pblk*)this->pblk_vec[i]);
+			c_perf->read_hit->total = 0;
+			c_perf->read_miss->total = 0;
+			c_perf->write_usr->total = 0;
+			c_perf->write_gc->total = 0;
+			c_perf->gc->total = 0;
+		}
+
+		// run flushing Thread
+		this->reset(this);
+		this->thread = (struct task_struct *)kthread_run(this->flush_thread, this, "manager_flush_thread");
+		printk(KERN_ALERT "[  CAST  ] - Start flushing thread of Manager(%p)\n", this);
+	}
+	else
+	{
+		this->active = 0;
+		while (this->active >= 0)
+		{
+			printk(KERN_ALERT "[  CAST  ] ㄴ wait active %d\n", this->active);
+			msleep(HZ / 10);
+		}
+	}
 }
 
 struct cast_perf_mgr *get_cast_perf_mgr(void*pblk)
@@ -419,10 +510,10 @@ struct cast_perf_mgr *get_cast_perf_mgr(void*pblk)
 	static struct cast_perf_mgr *instance = NULL;
 
 	//initialize
-	if (instance == NULL)
+	if (manager_allocated == 0 || instance == NULL)
 	{
-		printk(KERN_ALERT "[  CAST  ] - Make new manager : %p\n", instance);
 		instance = (struct cast_perf_mgr *)kmalloc(sizeof(struct cast_perf_mgr), GFP_KERNEL);
+		printk(KERN_ALERT "[  CAST  ] - Make new manager : %p\n", instance);
 		
 		// file open
 		instance->data_file = filp_open("/pblk-cast_perf/cpu.data", O_TRUNC | O_WRONLY | O_CREAT, 0);
@@ -437,25 +528,24 @@ struct cast_perf_mgr *get_cast_perf_mgr(void*pblk)
 		instance->current_stat = new_cast_cpu_stat(0);
 
 		instance->nr_pblk = 0;
+		instance->is_now_flushing = 0;
 
-		instance->active 	= 1;
-		instance->unit_time = 1000;
-		instance->init_time = get_jiffies_64()*1000/HZ;
+		instance->active 	= 0;
+		instance->unit_time = 0;
+		instance->init_time = 0;
 		instance->next_time = 0;
 
 		// functions
+		instance->set_active	= &SetCastActive;
 		instance->reset			= &Reset;
 		instance->flush 		= &ManagerFlush;
 		instance->flush_thread 	= &ManagerFlushThread;
 		instance->add_pblk 		= &AddPblk;
 		instance->pop_pblk 		= &PopPblk;
 
-		// run flushing Thread
-		instance->reset(instance);
-		instance->thread = (struct task_struct*)kthread_run(instance->flush_thread, 
-		instance, "flush_thread");
-		printk(KERN_ALERT "[  CAST  ] - Start flushing thread of Manager(%p)\n", instance);
+		manager_allocated = 1;
 	}
-	instance->add_pblk(instance, pblk);
+	if(pblk != NULL)
+		instance->add_pblk(instance, pblk);
 	return instance;
 }

@@ -264,7 +264,11 @@ static void pblk_end_io_write(struct nvm_rq *rqd)
 		WARN_ONCE(rqd->bio->bi_status, "pblk: corrupted write error\n");
 #endif
 	}
-
+	if(rqd->submit_time > 0){
+		uint64_t complete_time = ktime_get_ns();
+		pblk->c_perf->add_latency(pblk->c_perf, (long)(complete_time - rqd->submit_time));
+		//printk(KERN_ALERT "[  CAST  ] device w latency : %lldns \n", (long)(complete_time - rqd->submit_time));
+	}
 	pblk_complete_write(pblk, rqd, c_ctx);
 	atomic_dec(&pblk->inflight_io);
 }
@@ -509,17 +513,10 @@ static int pblk_submit_io_set(struct pblk *pblk, struct nvm_rq *rqd)
 
 	meta_line = pblk_should_submit_meta_io(pblk, rqd);
 
-
 	/* CastLab : write to Device(OCSSD) */
-	ktime_t s_time, e_time;
-	s_time = ktime_get_ns();
+	rqd->submit_time = ktime_get_ns();
 	/* Submit data write for current data line */
 	err = pblk_submit_io(pblk, rqd, NULL);
-	e_time = ktime_get_ns();
-	pblk->c_perf->inc_count(pblk, pblk->c_perf->wlat_dev, (long)(e_time - s_time));
-	if( pblk->c_perf->wlat_dev->num%10 == 1 )
-		printk(KERN_ALERT "[  CAST  ] device w latency : %lldns \n", e_time - s_time);
-		
 	if (err) {
 		pblk_err(pblk, "data I/O submission failed: %d\n", err);
 		return NVM_IO_ERR;
